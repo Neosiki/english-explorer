@@ -44,7 +44,7 @@ export async function saveProgress(hotspotId: string): Promise<void> {
   const studiedOn = todayStr();
   const db = getClient();
   if (db) {
-    await db.from('progress').insert({
+    await db.from('explorer_progress').insert({
       user_id: getUserId(),
       hotspot_id: hotspotId,
       studied_on: studiedOn,
@@ -61,7 +61,7 @@ export async function loadProgress(): Promise<ProgressRecord[]> {
   const db = getClient();
   if (db) {
     const { data, error } = await db
-      .from('progress')
+      .from('explorer_progress')
       .select('hotspot_id, studied_on')
       .eq('user_id', getUserId())
       .order('studied_on', { ascending: false });
