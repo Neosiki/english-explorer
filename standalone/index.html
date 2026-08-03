@@ -69,6 +69,7 @@
   #stage { position: relative; height: 100vh; width: 100%; overflow: hidden; }
   #canvas-mount { position: absolute; inset: 0; }
   #canvas-mount canvas { display: block; touch-action: none; cursor: grab; }
+  #canvas-mount canvas:active { cursor: grabbing; }
   #loading {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     color: var(--muted); font-size: 0.95rem; letter-spacing: 0.02em; z-index: 20;
@@ -624,6 +625,59 @@ window.addEventListener('resize', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Zoom: mouse wheel, keyboard up/down arrows, and click-drag all dolly the
+// camera along its current view direction. Clamped by distance from the
+// scene center so it can't clip through the floor or fly off into space.
+// ---------------------------------------------------------------------------
+const MIN_DIST = 1.2;
+const MAX_DIST = 11;
+const viewDir = new THREE.Vector3();
+function dolly(amount) {
+  camera.getWorldDirection(viewDir);
+  const nextPos = camera.position.clone().addScaledVector(viewDir, amount);
+  const dist = nextPos.length();
+  if (dist > MIN_DIST && dist < MAX_DIST) {
+    camera.position.copy(nextPos);
+  }
+}
+
+renderer.domElement.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  dolly(-event.deltaY * 0.0025);
+}, { passive: false });
+
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    dolly(0.3);
+  } else if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    dolly(-0.3);
+  }
+});
+
+let dragStartY = null;
+let dragMoved = false;
+const DRAG_THRESHOLD = 4;
+
+renderer.domElement.addEventListener('pointerdown', (event) => {
+  dragStartY = event.clientY;
+  dragMoved = false;
+});
+window.addEventListener('pointermove', (event) => {
+  if (dragStartY === null) return;
+  const dy = event.clientY - dragStartY;
+  if (Math.abs(dy) > DRAG_THRESHOLD) {
+    dragMoved = true;
+    dolly(-dy * 0.01);
+    dragStartY = event.clientY;
+  }
+});
+window.addEventListener('pointerup', () => {
+  dragStartY = null;
+});
+
+// ---------------------------------------------------------------------------
 // App state
 // ---------------------------------------------------------------------------
 let sceneIndex = 0;
@@ -753,6 +807,10 @@ function loadScene() {
 }
 
 function onClick(event) {
+  if (dragMoved) {
+    dragMoved = false;
+    return;
+  }
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;

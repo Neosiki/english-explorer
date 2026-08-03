@@ -89,7 +89,67 @@ export default function SceneExplorer() {
     };
     window.addEventListener('resize', handleResize);
 
+    // Zoom: mouse wheel, keyboard up/down arrows, and click-drag all dolly
+    // the camera along its current view direction. Clamped by distance from
+    // the scene center so it can't clip through the floor or fly off into space.
+    const MIN_DIST = 1.2;
+    const MAX_DIST = 11;
+    const viewDir = new THREE.Vector3();
+    const dolly = (amount: number) => {
+      camera.getWorldDirection(viewDir);
+      const nextPos = camera.position.clone().addScaledVector(viewDir, amount);
+      const dist = nextPos.length();
+      if (dist > MIN_DIST && dist < MAX_DIST) {
+        camera.position.copy(nextPos);
+      }
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      dolly(-event.deltaY * 0.0025);
+    };
+    renderer.domElement.addEventListener('wheel', handleWheel, { passive: false });
+
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        dolly(0.3);
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        dolly(-0.3);
+      }
+    };
+    window.addEventListener('keydown', handleKeydown);
+
+    let dragStartY: number | null = null;
+    let dragMoved = false;
+    const DRAG_THRESHOLD = 4;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      dragStartY = event.clientY;
+      dragMoved = false;
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      if (dragStartY === null) return;
+      const dy = event.clientY - dragStartY;
+      if (Math.abs(dy) > DRAG_THRESHOLD) {
+        dragMoved = true;
+        dolly(-dy * 0.01);
+        dragStartY = event.clientY;
+      }
+    };
+    const handlePointerUp = () => {
+      dragStartY = null;
+    };
+    renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
     const handleClick = (event: MouseEvent) => {
+      if (dragMoved) {
+        dragMoved = false;
+        return;
+      }
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -105,6 +165,11 @@ export default function SceneExplorer() {
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeydown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      renderer.domElement.removeEventListener('wheel', handleWheel);
+      renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('click', handleClick);
       renderer.dispose();
       if (mount.contains(renderer.domElement)) {

@@ -11,3 +11,10 @@ body {
 body {
   color: #1f2430;
 }
+
+canvas {
+  cursor: grab;
+}
+canvas:active {
+  cursor: grabbing;
+}
