@@ -102,13 +102,22 @@ export default function SentenceMode({ onClose }: SentenceModeProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-30 flex justify-center overflow-y-auto bg-[#f2ede3] px-4 py-6">
-      <div className="flex w-full max-w-md flex-col gap-4">
-        <div className="flex items-center justify-between">
+    <div
+      className="fixed inset-0 z-30 flex items-end justify-center bg-black/30 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[88vh] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-t-3xl bg-[#f2ede3] px-4 pb-6 pt-3 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 -mx-4 -mt-3 flex items-center justify-between bg-[#f2ede3] px-4 pb-2 pt-3">
+          <div className="mx-auto h-1.5 w-10 rounded-full bg-slate-300" />
+        </div>
+        <div className="-mt-2 flex items-center justify-between">
           <h1 className="text-xl font-extrabold text-ink">문장 모드</h1>
           <button
             onClick={onClose}
-            aria-label="3D 모드로 돌아가기"
+            aria-label="닫기"
             className="rounded-full bg-white p-2 text-slate-500 shadow hover:text-ink"
           >
             <X size={20} />

@@ -113,13 +113,19 @@
   }
   .sentence-mode-btn:hover { opacity: 0.9; }
 
-  /* Sentence mode overlay */
+  /* Sentence mode — bottom sheet over the still-visible (blurred) 3D scene,
+     not a separate full-page screen. */
   .sentence-overlay {
-    position: fixed; inset: 0; z-index: 40; overflow-y: auto;
-    background: var(--bg-page); display: flex; justify-content: center;
-    padding: 1.5rem 1rem 3rem;
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(0, 0, 0, 0.3); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+    display: flex; align-items: flex-end; justify-content: center;
   }
-  .sentence-wrap { width: 100%; max-width: 26rem; display: flex; flex-direction: column; gap: 1rem; }
+  .sentence-wrap {
+    width: 100%; max-width: 26rem; max-height: 88vh; display: flex; flex-direction: column; gap: 1rem;
+    background: var(--bg-page); border-radius: 1.5rem 1.5rem 0 0; padding: 0.75rem 1rem 1.5rem;
+    overflow-y: auto; box-shadow: 0 -10px 30px -10px rgba(0, 0, 0, 0.3);
+  }
+  .sentence-drag-handle { width: 2.5rem; height: 0.35rem; border-radius: 999px; background: var(--hairline); margin: 0.2rem auto; flex-shrink: 0; }
   .sentence-head { display: flex; align-items: center; justify-content: space-between; }
   .sentence-head h1 { font-size: 1.3rem; font-weight: 800; margin: 0; color: var(--ink); }
   .sentence-close {
@@ -1071,8 +1077,9 @@ function smRender() {
     : '<p class="sm-history-empty">아직 학습 기록이 없어요. 첫 카드를 학습해보세요!</p>';
 
   smMount.innerHTML =
-    '<div class="sentence-overlay"><div class="sentence-wrap">' +
-      '<div class="sentence-head"><h1>문장 모드</h1><button class="sentence-close" id="sm-close" aria-label="3D 모드로 돌아가기">' + svgIcon('x') + '</button></div>' +
+    '<div class="sentence-overlay" id="sm-backdrop"><div class="sentence-wrap">' +
+      '<div class="sentence-drag-handle"></div>' +
+      '<div class="sentence-head"><h1>문장 모드</h1><button class="sentence-close" id="sm-close" aria-label="닫기">' + svgIcon('x') + '</button></div>' +
       (isLikelyInAppBrowser()
         ? '<div class="sm-card" style="background:#fef3c7;color:#78350f;font-size:0.8rem;">카카오톡 등 앱 안에서는 발음이 안 나올 수 있어요. 메뉴에서 \'다른 브라우저로 열기\'를 눌러주세요.</div>'
         : '') +
@@ -1116,6 +1123,9 @@ function smRender() {
     '</div></div>';
 
   document.getElementById('sm-close').addEventListener('click', smClose);
+  document.getElementById('sm-backdrop').addEventListener('click', (event) => {
+    if (event.target.id === 'sm-backdrop') smClose();
+  });
   document.getElementById('sm-prev').addEventListener('click', () => { smIndex = (smIndex - 1 + allCards.length) % allCards.length; smSoundIssue = false; smRender(); });
   document.getElementById('sm-next').addEventListener('click', () => { smIndex = (smIndex + 1) % allCards.length; smSoundIssue = false; smRender(); });
   const smSpeakWordBtn = document.getElementById('sm-speak-word');
