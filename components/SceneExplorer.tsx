@@ -6,6 +6,7 @@ import gsap from 'gsap';
 import { scenes, type Hotspot } from '@/data/scenes';
 import { buildHotspotObject } from '@/lib/models';
 import InfoPanel from './InfoPanel';
+import BrowserNotice from './BrowserNotice';
 
 export default function SceneExplorer() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -181,6 +182,7 @@ export default function SceneExplorer() {
 
   return (
     <div className="relative h-screen w-full overflow-hidden">
+      <BrowserNotice />
       <div ref={mountRef} className="h-full w-full" />
 
       {/* Scene switcher */}

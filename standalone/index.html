@@ -141,9 +141,26 @@
   @media (prefers-reduced-motion: reduce) {
     .pill, .speak-btn { transition: none; }
   }
+
+  .browser-notice {
+    position: absolute; inset-inline: 0; top: 0; z-index: 30; display: none;
+    align-items: center; gap: 0.75rem; padding: 0.6rem 1rem;
+    background: #fef3c7; color: #78350f; font-size: 0.85rem; box-shadow: var(--panel-shadow);
+  }
+  .browser-notice.visible { display: flex; }
+  .browser-notice p { flex: 1; margin: 0; }
+  .browser-notice button {
+    flex-shrink: 0; border: none; background: transparent; color: #92400e;
+    border-radius: 999px; padding: 0.3rem; cursor: pointer; display: flex;
+  }
+  .browser-notice button:hover { background: rgba(146, 64, 14, 0.12); }
 </style>
 
 <div id="stage">
+  <div class="browser-notice" id="browser-notice">
+    <p>카카오톡 등 앱 안에서 열면 발음이 안 들릴 수 있어요. 오른쪽 위 메뉴에서 <strong>'다른 브라우저로 열기'</strong>(Chrome, 삼성 인터넷 등)를 눌러주세요.</p>
+    <button id="browser-notice-close" aria-label="닫기"></button>
+  </div>
   <div id="canvas-mount"></div>
   <div id="loading">3D 장면을 불러오는 중…</div>
 
@@ -519,9 +536,29 @@ function speak(text, onError) {
   utterance.rate = 0.85;
   const voice = pickEnglishVoice();
   if (voice) utterance.voice = voice;
+
+  let started = false;
+  utterance.onstart = () => { started = true; };
   if (onError) utterance.onerror = onError;
+
   lastUtterance = utterance; // Safari can silently drop unreferenced utterances.
   synth.speak(utterance);
+
+  // Some Android setups (in-app WebViews with no TTS engine bound, missing
+  // voice packs) never fire any event at all instead of erroring — speak()
+  // just silently no-ops. Treat "never actually started" as a failure too.
+  window.setTimeout(() => {
+    if (!started && onError) onError();
+  }, 1500);
+}
+
+// KakaoTalk/Naver/Instagram/etc. open shared links in an in-app WebView that
+// frequently has no system TTS engine bound to it, unlike the user's real
+// browser app. This is the most common cause of "volume is up but no sound"
+// reports on Android.
+function isLikelyInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  return /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|Line\/|WhatsApp|DaumApps|band\//i.test(ua);
 }
 
 initSpeech();
@@ -535,6 +572,12 @@ const switcherEl = document.getElementById('scene-switcher');
 const progressEl = document.getElementById('progress-badge');
 const hintEl = document.getElementById('hint');
 const infoMount = document.getElementById('info-panel-mount');
+const browserNoticeEl = document.getElementById('browser-notice');
+const browserNoticeCloseEl = document.getElementById('browser-notice-close');
+
+browserNoticeCloseEl.innerHTML = svgIcon('x');
+browserNoticeCloseEl.addEventListener('click', () => browserNoticeEl.classList.remove('visible'));
+if (isLikelyInAppBrowser()) browserNoticeEl.classList.add('visible');
 
 const width = mount.clientWidth;
 const height = mount.clientHeight;
@@ -640,7 +683,13 @@ function renderInfoPanel() {
       '<p class="info-example">' + h.example + '</p>' +
       '<button class="speak-btn small" aria-label="예문 발음 듣기" data-speak="' + h.example.replace(/"/g, '&quot;') + '">' + svgIcon('volume') + '</button>' +
     '</div>' +
-    (soundIssue ? '<p class="info-sound-hint">소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.</p>' : '');
+    (soundIssue
+      ? '<p class="info-sound-hint">' +
+        (isLikelyInAppBrowser()
+          ? "이 앱 안에서는 발음이 안 나올 수 있어요. 오른쪽 위 메뉴에서 '다른 브라우저로 열기'를 눌러주세요."
+          : '소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.') +
+        '</p>'
+      : '');
   panel.querySelector('.info-close').addEventListener('click', () => {
     selectedHotspot = null;
     renderInfoPanel();

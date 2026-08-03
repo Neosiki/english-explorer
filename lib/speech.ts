@@ -64,8 +64,31 @@ export function speak(text: string, onError?: () => void) {
   utterance.rate = 0.85;
   const voice = pickEnglishVoice();
   if (voice) utterance.voice = voice;
+
+  let started = false;
+  utterance.onstart = () => {
+    started = true;
+  };
   utterance.onerror = () => onError?.();
+
   // Safari can silently drop utterances with no other live reference to them.
   lastUtterance = utterance;
   synth.speak(utterance);
+
+  // Some Android setups (in-app WebViews with no TTS engine bound, missing
+  // voice packs) never fire any event at all instead of erroring — speak()
+  // just silently no-ops. Treat "never actually started" as a failure too.
+  window.setTimeout(() => {
+    if (!started) onError?.();
+  }, 1500);
+}
+
+// KakaoTalk/Naver/Instagram/etc. open shared links in an in-app WebView that
+// frequently has no system TTS engine bound to it at all, unlike the user's
+// real browser app. This is the most common cause of "volume is up but no
+// sound" reports on Android.
+export function isLikelyInAppBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /KAKAOTALK|NAVER\(inapp|Instagram|FBAN|FBAV|Line\/|WhatsApp|DaumApps|band\//i.test(ua);
 }

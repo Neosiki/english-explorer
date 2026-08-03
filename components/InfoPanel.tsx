@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Volume2, X } from 'lucide-react';
 import type { Hotspot } from '@/data/scenes';
-import { initSpeech, speak } from '@/lib/speech';
+import { initSpeech, isLikelyInAppBrowser, speak } from '@/lib/speech';
 
 interface InfoPanelProps {
   hotspot: Hotspot;
@@ -59,7 +59,9 @@ export default function InfoPanel({ hotspot, onClose }: InfoPanelProps) {
 
       {soundIssue && (
         <p className="mt-2 text-xs text-amber-600">
-          소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.
+          {isLikelyInAppBrowser()
+            ? '이 앱 안에서는 발음이 안 나올 수 있어요. 오른쪽 위 메뉴에서 \'다른 브라우저로 열기\'를 눌러주세요.'
+            : '소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.'}
         </p>
       )}
     </div>
