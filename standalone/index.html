@@ -1,5 +1,13 @@
 <meta charset="utf-8">
-<title>English Explorer — Interactive Vocabulary</title>
+<title>영어 학습 앱 — 초등학생을 위한 3D 단어 탐험</title>
+<!--
+  STEP 04. 온라인 DB 연동하기 — Supabase 클라이언트를 CDN에서 불러옵니다.
+  Claude Artifact 환경은 보안상 외부 네트워크 요청을 차단하므로, 이 안에서는
+  아래 스크립트가 조용히 로드되지 않고 앱이 자동으로 "로컬 저장 모드"로
+  동작합니다. 이 HTML 파일을 Netlify 등 다른 곳에 그대로 배포하면 정상적으로
+  Supabase에 연결됩니다.
+-->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg-page: #f2ede3;
@@ -89,13 +97,75 @@
   .pill.active { background: var(--pill-active-bg); color: var(--pill-active-text); }
   .pill:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
 
+  .top-right { position: absolute; right: 1rem; top: 1rem; z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+
   .progress-badge {
-    position: absolute; right: 1rem; top: 1rem; z-index: 5;
     background: var(--pill-bg); color: var(--pill-text); border-radius: 999px;
     padding: 0.55rem 1.15rem; font-weight: 600; font-size: 0.9rem; box-shadow: var(--panel-shadow);
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     font-variant-numeric: tabular-nums;
   }
+
+  .sentence-mode-btn {
+    border: none; border-radius: 999px; padding: 0.55rem 1.15rem; font-size: 0.9rem; font-weight: 700;
+    background: var(--pill-active-bg); color: var(--pill-active-text); box-shadow: var(--panel-shadow);
+    cursor: pointer; font-family: inherit;
+  }
+  .sentence-mode-btn:hover { opacity: 0.9; }
+
+  /* Sentence mode overlay */
+  .sentence-overlay {
+    position: fixed; inset: 0; z-index: 40; overflow-y: auto;
+    background: var(--bg-page); display: flex; justify-content: center;
+    padding: 1.5rem 1rem 3rem;
+  }
+  .sentence-wrap { width: 100%; max-width: 26rem; display: flex; flex-direction: column; gap: 1rem; }
+  .sentence-head { display: flex; align-items: center; justify-content: space-between; }
+  .sentence-head h1 { font-size: 1.3rem; font-weight: 800; margin: 0; color: var(--ink); }
+  .sentence-close {
+    border: none; background: var(--panel-bg); color: var(--muted); border-radius: 999px;
+    padding: 0.5rem; box-shadow: var(--panel-shadow); cursor: pointer; display: flex;
+  }
+  .sm-card { background: var(--panel-bg); border-radius: 1.1rem; padding: 1.25rem; box-shadow: var(--panel-shadow); }
+  .sm-card h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--ink); }
+  .sm-row { display: flex; align-items: center; justify-content: space-between; }
+  .sm-progress-body { display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem; }
+  .sm-ring {
+    width: 64px; height: 64px; border-radius: 50%; flex-shrink: 0; position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sm-ring::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--panel-bg); }
+  .sm-ring span { position: relative; font-weight: 700; font-size: 0.85rem; color: var(--ink); }
+  .sm-bar { height: 8px; border-radius: 999px; background: #eef2ff; overflow: hidden; margin-top: 0.5rem; }
+  .sm-bar-fill { height: 100%; background: #4f46e5; transition: width 0.3s ease; }
+  .sm-flashcard { margin-top: 1rem; border-radius: 1rem; background: var(--bg-page); padding: 1.4rem 1rem; text-align: center; }
+  .sm-word-row { display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
+  .sm-word { font-size: 1.5rem; font-weight: 800; margin: 0; color: var(--ink); }
+  .sm-ipa { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--muted); }
+  .sm-korean { margin: 0.15rem 0 0; font-size: 0.9rem; color: var(--muted); }
+  .sm-divider { height: 1px; background: var(--hairline); margin: 1rem 0; }
+  .sm-example { font-size: 1.05rem; font-weight: 600; margin: 0; color: var(--ink); }
+  .sm-example-ko { margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--muted); }
+  .sm-speak-btn {
+    border: none; border-radius: 999px; padding: 0.35rem; cursor: pointer; display: flex; flex-shrink: 0;
+    background: color-mix(in srgb, var(--sky, #4cc9f0) 20%, transparent); color: #0f7ea8;
+  }
+  .sm-controls { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 1rem; }
+  .sm-nav-btn {
+    width: 44px; height: 44px; border-radius: 999px; border: none; background: #eef2ff;
+    font-size: 1.05rem; cursor: pointer;
+  }
+  .sm-nav-btn:hover { background: #e0e7ff; }
+  .sm-learned-btn {
+    display: block; width: 100%; margin-top: 1rem; padding: 0.8rem; border: none; border-radius: 0.8rem;
+    background: var(--ink); color: var(--bg-page); font-weight: 700; font-size: 0.9rem; cursor: pointer;
+  }
+  .sm-learned-btn:disabled { opacity: 0.5; cursor: default; }
+  .sm-sound-hint { margin: 0.6rem 0 0; font-size: 0.75rem; color: #b45309; text-align: center; }
+  .sm-db-badge { font-size: 0.7rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 999px; background: #fef3c7; color: #92400e; }
+  .sm-db-badge.connected { background: #dcfce7; color: #166534; }
+  .sm-history-row { display: flex; justify-content: space-between; padding: 0.55rem 0.75rem; border-radius: 0.6rem; background: var(--bg-page); font-size: 0.85rem; }
+  .sm-history-empty { text-align: center; font-size: 0.85rem; color: var(--muted); padding: 0.5rem 0; }
 
   .hint {
     position: absolute; bottom: 1.5rem; left: 50%; transform: translateX(-50%); z-index: 5;
@@ -166,9 +236,13 @@
   <div id="loading">3D 장면을 불러오는 중…</div>
 
   <div class="scene-switcher" id="scene-switcher"></div>
-  <div class="progress-badge" id="progress-badge">0 / 0 발견</div>
+  <div class="top-right">
+    <button class="sentence-mode-btn" id="sentence-mode-btn">📝 문장 모드</button>
+    <div class="progress-badge" id="progress-badge">0 / 0 발견</div>
+  </div>
   <div class="hint" id="hint">장면 속 물건을 클릭해서 영어 단어를 배워보세요!</div>
   <div id="info-panel-mount"></div>
+  <div id="sentence-mode-mount"></div>
 </div>
 
 <script type="module">
@@ -190,45 +264,45 @@ const scenes = [
     id: 'classroom', title: 'Classroom', titleKo: '교실',
     bgColor: '#dbeafe', floorColor: '#c8b28a',
     hotspots: [
-      { id: 'desk', word: 'desk', korean: '책상', ipa: '/dɛsk/', example: 'This is my desk.', color: '#a0714a', position: [-2, 0, 0] },
-      { id: 'chair', word: 'chair', korean: '의자', ipa: '/tʃɛr/', example: 'Sit on the chair.', color: '#6b4a2b', position: [-2, 0, 1] },
-      { id: 'book', word: 'book', korean: '책', ipa: '/bʊk/', example: 'Open your book.', color: '#e63946', position: [-2.3, 0.8, -0.15] },
-      { id: 'pencil', word: 'pencil', korean: '연필', ipa: '/ˈpɛnsəl/', example: 'I have a pencil.', color: '#ffb703', position: [-1.7, 0.8, 0.15] },
-      { id: 'blackboard', word: 'blackboard', korean: '칠판', ipa: '/ˈblækbɔːrd/', example: 'Look at the blackboard.', color: '#1d3557', position: [0, 0, -2.2] },
-      { id: 'backpack', word: 'backpack', korean: '책가방', ipa: '/ˈbækpæk/', example: 'Pack your backpack.', color: '#2a9d8f', position: [1.5, 0, 1.2] },
+      { id: 'desk', word: 'desk', korean: '책상', ipa: '/dɛsk/', example: 'This is my desk.', exampleKo: '이건 제 책상이에요.', color: '#a0714a', position: [-2, 0, 0] },
+      { id: 'chair', word: 'chair', korean: '의자', ipa: '/tʃɛr/', example: 'Sit on the chair.', exampleKo: '의자에 앉으세요.', color: '#6b4a2b', position: [-2, 0, 1] },
+      { id: 'book', word: 'book', korean: '책', ipa: '/bʊk/', example: 'Open your book.', exampleKo: '책을 펴세요.', color: '#e63946', position: [-2.3, 0.8, -0.15] },
+      { id: 'pencil', word: 'pencil', korean: '연필', ipa: '/ˈpɛnsəl/', example: 'I have a pencil.', exampleKo: '저는 연필이 있어요.', color: '#ffb703', position: [-1.7, 0.8, 0.15] },
+      { id: 'blackboard', word: 'blackboard', korean: '칠판', ipa: '/ˈblækbɔːrd/', example: 'Look at the blackboard.', exampleKo: '칠판을 보세요.', color: '#1d3557', position: [0, 0, -2.2] },
+      { id: 'backpack', word: 'backpack', korean: '책가방', ipa: '/ˈbækpæk/', example: 'Pack your backpack.', exampleKo: '책가방을 챙기세요.', color: '#2a9d8f', position: [1.5, 0, 1.2] },
     ],
   },
   {
     id: 'airport', title: 'Airport', titleKo: '공항',
     bgColor: '#e0f2fe', floorColor: '#b6bec7',
     hotspots: [
-      { id: 'airplane', word: 'airplane', korean: '비행기', ipa: '/ˈɛrpleɪn/', example: 'The airplane is big.', color: '#f4f4f4', position: [-1.5, 0, -1] },
-      { id: 'gate', word: 'gate', korean: '탑승구', ipa: '/ɡeɪt/', example: 'Go to gate five.', color: '#457b9d', position: [1.8, 0, -1.5] },
-      { id: 'suitcase', word: 'suitcase', korean: '여행 가방', ipa: '/ˈsuːtkeɪs/', example: 'Carry your suitcase.', color: '#e76f51', position: [0.5, 0, 1.2] },
-      { id: 'passport', word: 'passport', korean: '여권', ipa: '/ˈpæspɔːrt/', example: 'Show your passport.', color: '#2a9d8f', position: [0.5, 0.5, 1.05] },
-      { id: 'runway', word: 'runway', korean: '활주로', ipa: '/ˈrʌnweɪ/', example: 'The plane is on the runway.', color: '#495057', position: [-1.5, 0, -2.5] },
+      { id: 'airplane', word: 'airplane', korean: '비행기', ipa: '/ˈɛrpleɪn/', example: 'The airplane is big.', exampleKo: '비행기는 커요.', color: '#f4f4f4', position: [-1.5, 0, -1] },
+      { id: 'gate', word: 'gate', korean: '탑승구', ipa: '/ɡeɪt/', example: 'Go to gate five.', exampleKo: '5번 탑승구로 가세요.', color: '#457b9d', position: [1.8, 0, -1.5] },
+      { id: 'suitcase', word: 'suitcase', korean: '여행 가방', ipa: '/ˈsuːtkeɪs/', example: 'Carry your suitcase.', exampleKo: '여행 가방을 들어주세요.', color: '#e76f51', position: [0.5, 0, 1.2] },
+      { id: 'passport', word: 'passport', korean: '여권', ipa: '/ˈpæspɔːrt/', example: 'Show your passport.', exampleKo: '여권을 보여주세요.', color: '#2a9d8f', position: [0.5, 0.5, 1.05] },
+      { id: 'runway', word: 'runway', korean: '활주로', ipa: '/ˈrʌnweɪ/', example: 'The plane is on the runway.', exampleKo: '비행기가 활주로에 있어요.', color: '#495057', position: [-1.5, 0, -2.5] },
     ],
   },
   {
     id: 'cafe', title: 'Cafe', titleKo: '카페',
     bgColor: '#fff1e6', floorColor: '#d8c3a5',
     hotspots: [
-      { id: 'cup', word: 'cup', korean: '컵', ipa: '/kʌp/', example: 'This is a cup.', color: '#ffffff', position: [-0.25, 0.7, 0.15] },
-      { id: 'table', word: 'table', korean: '테이블', ipa: '/ˈteɪbəl/', example: 'Sit at the table.', color: '#8d6e63', position: [0, 0, 0] },
-      { id: 'menu', word: 'menu', korean: '메뉴', ipa: '/ˈmɛnjuː/', example: 'Read the menu.', color: '#e9c46a', position: [0.28, 0.7, 0.2] },
-      { id: 'juice', word: 'juice', korean: '주스', ipa: '/dʒuːs/', example: 'I want juice.', color: '#ff9f1c', position: [0.15, 0.7, -0.25] },
-      { id: 'cake', word: 'cake', korean: '케이크', ipa: '/keɪk/', example: 'The cake is sweet.', color: '#f4a261', position: [-0.2, 0.7, -0.2] },
+      { id: 'cup', word: 'cup', korean: '컵', ipa: '/kʌp/', example: 'This is a cup.', exampleKo: '이건 컵이에요.', color: '#ffffff', position: [-0.25, 0.7, 0.15] },
+      { id: 'table', word: 'table', korean: '테이블', ipa: '/ˈteɪbəl/', example: 'Sit at the table.', exampleKo: '테이블에 앉으세요.', color: '#8d6e63', position: [0, 0, 0] },
+      { id: 'menu', word: 'menu', korean: '메뉴', ipa: '/ˈmɛnjuː/', example: 'Read the menu.', exampleKo: '메뉴를 읽어보세요.', color: '#e9c46a', position: [0.28, 0.7, 0.2] },
+      { id: 'juice', word: 'juice', korean: '주스', ipa: '/dʒuːs/', example: 'I want juice.', exampleKo: '저는 주스를 마시고 싶어요.', color: '#ff9f1c', position: [0.15, 0.7, -0.25] },
+      { id: 'cake', word: 'cake', korean: '케이크', ipa: '/keɪk/', example: 'The cake is sweet.', exampleKo: '케이크는 달아요.', color: '#f4a261', position: [-0.2, 0.7, -0.2] },
     ],
   },
   {
     id: 'checkin', title: 'Check-in Counter', titleKo: '체크인 카운터',
     bgColor: '#eef2ff', floorColor: '#c9ccd1',
     hotspots: [
-      { id: 'ticket', word: 'ticket', korean: '티켓', ipa: '/ˈtɪkɪt/', example: 'Here is my ticket.', color: '#118ab2', position: [-0.6, 0.98, -0.5] },
-      { id: 'counter', word: 'counter', korean: '카운터', ipa: '/ˈkaʊntər/', example: 'Go to the counter.', color: '#495057', position: [0, 0, -0.5] },
-      { id: 'luggage', word: 'luggage', korean: '짐', ipa: '/ˈlʌɡɪdʒ/', example: 'Put your luggage here.', color: '#e76f51', position: [-1.6, 0, 0.9] },
-      { id: 'boardingpass', word: 'boarding pass', korean: '탑승권', ipa: '/ˈbɔːrdɪŋ pæs/', example: 'I need a boarding pass.', color: '#06d6a0', position: [0.3, 0.98, -0.55] },
-      { id: 'scale', word: 'scale', korean: '저울', ipa: '/skeɪl/', example: 'Put the bag on the scale.', color: '#ffd166', position: [1.4, 0, 0.6] },
+      { id: 'ticket', word: 'ticket', korean: '티켓', ipa: '/ˈtɪkɪt/', example: 'Here is my ticket.', exampleKo: '여기 제 티켓이에요.', color: '#118ab2', position: [-0.6, 0.98, -0.5] },
+      { id: 'counter', word: 'counter', korean: '카운터', ipa: '/ˈkaʊntər/', example: 'Go to the counter.', exampleKo: '카운터로 가세요.', color: '#495057', position: [0, 0, -0.5] },
+      { id: 'luggage', word: 'luggage', korean: '짐', ipa: '/ˈlʌɡɪdʒ/', example: 'Put your luggage here.', exampleKo: '짐을 여기에 놓으세요.', color: '#e76f51', position: [-1.6, 0, 0.9] },
+      { id: 'boardingpass', word: 'boarding pass', korean: '탑승권', ipa: '/ˈbɔːrdɪŋ pæs/', example: 'I need a boarding pass.', exampleKo: '탑승권이 필요해요.', color: '#06d6a0', position: [0.3, 0.98, -0.55] },
+      { id: 'scale', word: 'scale', korean: '저울', ipa: '/skeɪl/', example: 'Put the bag on the scale.', exampleKo: '가방을 저울에 올려주세요.', color: '#ffd166', position: [1.4, 0, 0.6] },
     ],
   },
 ];
@@ -565,6 +639,81 @@ function isLikelyInAppBrowser() {
 initSpeech();
 
 // ---------------------------------------------------------------------------
+// STEP 04. 온라인 DB 연동하기
+//
+// 아래 두 값을 Supabase 프로젝트의 URL/anon key로 채우면 학습 기록이 클라우드
+// DB에 날짜별로 저장됩니다. 비워두면 이 브라우저의 localStorage를 대신
+// 사용합니다. (Claude Artifact 안에서는 외부 네트워크가 막혀 있어 값을
+// 채워도 자동으로 로컬 저장 모드로 동작합니다 — 다른 곳에 배포하면 정상 작동)
+// ---------------------------------------------------------------------------
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+const isSupabaseConfigured =
+  SUPABASE_URL !== 'YOUR_SUPABASE_URL' && typeof window.supabase !== 'undefined';
+
+const db = isSupabaseConfigured
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function getUserId() {
+  let id = localStorage.getItem('explorer_user_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('explorer_user_id', id);
+  }
+  return id;
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function saveProgress(hotspotId) {
+  const studiedOn = todayStr();
+  if (db) {
+    await db.from('progress').insert({
+      user_id: getUserId(),
+      hotspot_id: hotspotId,
+      studied_on: studiedOn,
+    });
+    return;
+  }
+  const data = JSON.parse(localStorage.getItem('explorer_progress') || '[]');
+  data.push({ hotspot_id: hotspotId, studied_on: studiedOn });
+  localStorage.setItem('explorer_progress', JSON.stringify(data));
+}
+
+async function loadProgress() {
+  if (db) {
+    const { data, error } = await db
+      .from('progress')
+      .select('hotspot_id, studied_on')
+      .eq('user_id', getUserId())
+      .order('studied_on', { ascending: false });
+    if (error) {
+      console.error('Supabase 조회 실패:', error.message);
+      return [];
+    }
+    return data;
+  }
+  return JSON.parse(localStorage.getItem('explorer_progress') || '[]');
+}
+
+function computeStreak(records) {
+  const days = new Set(records.map((r) => r.studied_on));
+  let streak = 0;
+  const cursor = new Date();
+  while (true) {
+    const key = cursor.toISOString().slice(0, 10);
+    if (!days.has(key)) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
+// ---------------------------------------------------------------------------
 // Three.js scene setup
 // ---------------------------------------------------------------------------
 const mount = document.getElementById('canvas-mount');
@@ -801,6 +950,7 @@ function selectHotspot(id) {
   selectedHotspot = h;
   soundIssue = false;
   visited.add(activeScene().id + ':' + id);
+  saveProgress(id);
   renderInfoPanel();
   renderProgress();
   tweenTo(camera.position, {
@@ -857,6 +1007,106 @@ function onClick(event) {
   }
 }
 renderer.domElement.addEventListener('click', onClick);
+
+// ---------------------------------------------------------------------------
+// 문장 모드 — 모든 장면의 단어·예문을 플래시카드로 복습하는 전체 화면 모드.
+// 3D 모드와 같은 saveProgress/loadProgress를 공유해서 한 곳에서 학습하면
+// 두 화면 모두에 반영됩니다.
+// ---------------------------------------------------------------------------
+const allCards = scenes.flatMap((s) => s.hotspots.map((h) => Object.assign({ sceneTitleKo: s.titleKo }, h)));
+let smIndex = 0;
+let smRecords = [];
+let smSoundIssue = false;
+
+const smBtn = document.getElementById('sentence-mode-btn');
+const smMount = document.getElementById('sentence-mode-mount');
+
+async function smRefresh() {
+  smRecords = await loadProgress();
+  smRender();
+}
+
+function smCard() { return allCards[smIndex]; }
+
+function smRender() {
+  const card = smCard();
+  const studiedIds = new Set(smRecords.map((r) => r.hotspot_id));
+  const pct = Math.round((studiedIds.size / allCards.length) * 100);
+  const streak = computeStreak(smRecords);
+  const studiedToday = smRecords.some((r) => r.hotspot_id === card.id && r.studied_on === todayStr());
+
+  const byDate = new Map();
+  smRecords.forEach((r) => byDate.set(r.studied_on, (byDate.get(r.studied_on) || 0) + 1));
+  const dates = [...byDate.keys()].sort((a, b) => (a < b ? 1 : -1));
+  const historyHtml = dates.length
+    ? dates.map((d) => '<div class="sm-history-row"><span>' + d + '</span><span>' + byDate.get(d) + '개</span></div>').join('')
+    : '<p class="sm-history-empty">아직 학습 기록이 없어요. 첫 카드를 학습해보세요!</p>';
+
+  smMount.innerHTML =
+    '<div class="sentence-overlay"><div class="sentence-wrap">' +
+      '<div class="sentence-head"><h1>문장 모드</h1><button class="sentence-close" id="sm-close" aria-label="3D 모드로 돌아가기">' + svgIcon('x') + '</button></div>' +
+      (isLikelyInAppBrowser()
+        ? '<div class="sm-card" style="background:#fef3c7;color:#78350f;font-size:0.8rem;">카카오톡 등 앱 안에서는 발음이 안 나올 수 있어요. 메뉴에서 \'다른 브라우저로 열기\'를 눌러주세요.</div>'
+        : '') +
+      '<section class="sm-card">' +
+        '<div class="sm-row"><h2>진행률</h2><span style="font-size:0.8rem;color:var(--muted);">🔥 ' + streak + '일 연속</span></div>' +
+        '<div class="sm-progress-body">' +
+          '<div class="sm-ring" style="background:conic-gradient(#4f46e5 ' + pct + '%, #eef2ff 0);"><span>' + pct + '%</span></div>' +
+          '<div style="flex:1;">' +
+            '<p style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--ink);"><strong>' + studiedIds.size + '</strong> / ' + allCards.length + ' 단어·문장 학습</p>' +
+            '<div class="sm-bar"><div class="sm-bar-fill" style="width:' + pct + '%;"></div></div>' +
+          '</div>' +
+        '</div>' +
+      '</section>' +
+      '<section class="sm-card">' +
+        '<div class="sm-row"><h2>Flashcard</h2><span style="font-size:0.75rem;font-weight:600;color:#4f46e5;background:#eef2ff;padding:0.2rem 0.6rem;border-radius:999px;">' + card.sceneTitleKo + '</span></div>' +
+        '<div class="sm-flashcard">' +
+          '<div class="sm-word-row"><p class="sm-word">' + card.word + '</p><button class="sm-speak-btn" id="sm-speak-word" aria-label="단어 발음 듣기">' + svgIcon('volume') + '</button></div>' +
+          '<p class="sm-ipa">' + card.ipa + '</p>' +
+          '<p class="sm-korean">' + card.korean + '</p>' +
+          '<div class="sm-divider"></div>' +
+          '<div class="sm-word-row"><p class="sm-example">' + card.example + '</p><button class="sm-speak-btn" id="sm-speak-example" aria-label="예문 발음 듣기">' + svgIcon('volume') + '</button></div>' +
+          '<p class="sm-example-ko">' + card.exampleKo + '</p>' +
+        '</div>' +
+        '<div class="sm-controls">' +
+          '<button class="sm-nav-btn" id="sm-prev" aria-label="이전 카드">◀</button>' +
+          '<button class="sm-nav-btn" id="sm-next" aria-label="다음 카드">▶</button>' +
+        '</div>' +
+        '<button class="sm-learned-btn" id="sm-learned"' + (studiedToday ? ' disabled' : '') + '>' +
+          (studiedToday ? '오늘 이미 학습했어요 ✔' : '오늘 이 단어·문장 학습했어요 ✔') +
+        '</button>' +
+        (smSoundIssue
+          ? '<p class="sm-sound-hint">' + (isLikelyInAppBrowser() ? '이 앱 안에서는 발음이 안 나올 수 있어요. 다른 브라우저로 열어주세요.' : '소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.') + '</p>'
+          : '') +
+      '</section>' +
+      '<section class="sm-card">' +
+        '<div class="sm-row"><h2>학습 기록</h2><span class="sm-db-badge' + (isSupabaseConfigured ? ' connected' : '') + '">' + (isSupabaseConfigured ? 'Supabase 연결됨' : '로컬 저장 모드') + '</span></div>' +
+        '<div style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem;">' + historyHtml + '</div>' +
+      '</section>' +
+    '</div></div>';
+
+  document.getElementById('sm-close').addEventListener('click', smClose);
+  document.getElementById('sm-prev').addEventListener('click', () => { smIndex = (smIndex - 1 + allCards.length) % allCards.length; smSoundIssue = false; smRender(); });
+  document.getElementById('sm-next').addEventListener('click', () => { smIndex = (smIndex + 1) % allCards.length; smSoundIssue = false; smRender(); });
+  document.getElementById('sm-speak-word').addEventListener('click', () => speak(card.word, () => { smSoundIssue = true; smRender(); }));
+  document.getElementById('sm-speak-example').addEventListener('click', () => speak(card.example, () => { smSoundIssue = true; smRender(); }));
+  document.getElementById('sm-learned').addEventListener('click', async () => {
+    await saveProgress(card.id);
+    await smRefresh();
+  });
+}
+
+function smOpen() {
+  smSoundIssue = false;
+  smMount.style.display = 'block';
+  smRefresh();
+}
+function smClose() {
+  smMount.innerHTML = '';
+  smMount.style.display = 'none';
+}
+smMount.style.display = 'none';
+smBtn.addEventListener('click', smOpen);
 
 loadScene();
 </script>

@@ -5,14 +5,17 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { scenes, type Hotspot } from '@/data/scenes';
 import { buildHotspotObject } from '@/lib/models';
+import { saveProgress } from '@/lib/db';
 import InfoPanel from './InfoPanel';
 import BrowserNotice from './BrowserNotice';
+import SentenceMode from './SentenceMode';
 
 export default function SceneExplorer() {
   const mountRef = useRef<HTMLDivElement>(null);
   const [sceneIndex, setSceneIndex] = useState(0);
   const [selected, setSelected] = useState<Hotspot | null>(null);
   const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [sentenceMode, setSentenceMode] = useState(false);
 
   const threeRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -223,6 +226,7 @@ export default function SceneExplorer() {
       if (!hotspot) return;
       setSelected(hotspot);
       setVisited((prev) => new Set(prev).add(`${activeScene.id}:${id}`));
+      saveProgress(id);
       const three = threeRef.current;
       if (three) {
         gsap.to(three.camera.position, {
@@ -302,9 +306,17 @@ export default function SceneExplorer() {
         ))}
       </div>
 
-      {/* Progress */}
-      <div className="absolute right-4 top-4 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-ink shadow">
-        {progress} / {activeScene.hotspots.length} 발견
+      {/* Progress + mode toggle */}
+      <div className="absolute right-4 top-4 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setSentenceMode(true)}
+          className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white shadow transition hover:opacity-90"
+        >
+          📝 문장 모드
+        </button>
+        <div className="rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-ink shadow">
+          {progress} / {activeScene.hotspots.length} 발견
+        </div>
       </div>
 
       {/* Hint */}
@@ -317,6 +329,8 @@ export default function SceneExplorer() {
       {selected && (
         <InfoPanel hotspot={selected} onClose={() => setSelected(null)} />
       )}
+
+      {sentenceMode && <SentenceMode onClose={() => setSentenceMode(false)} />}
     </div>
   );
 }
