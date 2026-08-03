@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>영어 학습 앱 — 초등학생을 위한 3D 단어 탐험</title>
+<title>3D로 배우는 생활 영어 앱</title>
 <!--
   STEP 04. 온라인 DB 연동하기 — Supabase 클라이언트를 CDN에서 불러옵니다.
   Claude Artifact 환경은 보안상 외부 네트워크 요청을 차단하므로, 이 안에서는
@@ -305,6 +305,27 @@ const scenes = [
       { id: 'scale', word: 'scale', korean: '저울', ipa: '/skeɪl/', example: 'Put the bag on the scale.', exampleKo: '가방을 저울에 올려주세요.', color: '#ffd166', position: [1.4, 0, 0.6] },
     ],
   },
+];
+
+// ---------------------------------------------------------------------------
+// Standalone "생활 영어" phrases (ported from data/sentences.ts) — reviewed
+// alongside 3D word cards in Sentence Mode, with no single hotspot behind them.
+// ---------------------------------------------------------------------------
+const sentences = [
+  { id: 'phrase-1', en: 'Hello.', ko: '안녕하세요.', cat: '인사' },
+  { id: 'phrase-2', en: 'How are you?', ko: '어떻게 지내세요?', cat: '인사' },
+  { id: 'phrase-3', en: 'Nice to meet you.', ko: '만나서 반가워요.', cat: '인사' },
+  { id: 'phrase-4', en: "What's your name?", ko: '이름이 뭐예요?', cat: '자기소개' },
+  { id: 'phrase-5', en: 'My name is Jimin.', ko: '제 이름은 지민이에요.', cat: '자기소개' },
+  { id: 'phrase-6', en: "I'm from Korea.", ko: '저는 한국에서 왔어요.', cat: '자기소개' },
+  { id: 'phrase-7', en: 'Thank you so much.', ko: '정말 감사합니다.', cat: '감사/사과' },
+  { id: 'phrase-8', en: "I'm sorry.", ko: '죄송합니다.', cat: '감사/사과' },
+  { id: 'phrase-9', en: 'Excuse me.', ko: '실례합니다.', cat: '감사/사과' },
+  { id: 'phrase-10', en: 'Could you help me?', ko: '저 좀 도와주시겠어요?', cat: '일상' },
+  { id: 'phrase-11', en: 'How much is this?', ko: '이거 얼마예요?', cat: '일상' },
+  { id: 'phrase-12', en: 'See you tomorrow.', ko: '내일 봐요.', cat: '일상' },
+  { id: 'phrase-13', en: 'Have a nice day.', ko: '좋은 하루 보내세요.', cat: '일상' },
+  { id: 'phrase-14', en: "I don't understand.", ko: '이해가 안 돼요.', cat: '일상' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1013,7 +1034,14 @@ renderer.domElement.addEventListener('click', onClick);
 // 3D 모드와 같은 saveProgress/loadProgress를 공유해서 한 곳에서 학습하면
 // 두 화면 모두에 반영됩니다.
 // ---------------------------------------------------------------------------
-const allCards = scenes.flatMap((s) => s.hotspots.map((h) => Object.assign({ sceneTitleKo: s.titleKo }, h)));
+const wordCards = scenes.flatMap((s) => s.hotspots.map((h) => ({
+  id: h.id, category: s.titleKo, word: h.word, ipa: h.ipa, korean: h.korean,
+  example: h.example, exampleKo: h.exampleKo,
+})));
+const phraseCards = sentences.map((s) => ({
+  id: s.id, category: s.cat, word: null, ipa: '', korean: '', example: s.en, exampleKo: s.ko,
+}));
+const allCards = wordCards.concat(phraseCards);
 let smIndex = 0;
 let smRecords = [];
 let smSoundIssue = false;
@@ -1059,13 +1087,15 @@ function smRender() {
         '</div>' +
       '</section>' +
       '<section class="sm-card">' +
-        '<div class="sm-row"><h2>Flashcard</h2><span style="font-size:0.75rem;font-weight:600;color:#4f46e5;background:#eef2ff;padding:0.2rem 0.6rem;border-radius:999px;">' + card.sceneTitleKo + '</span></div>' +
+        '<div class="sm-row"><h2>Flashcard</h2><span style="font-size:0.75rem;font-weight:600;color:#4f46e5;background:#eef2ff;padding:0.2rem 0.6rem;border-radius:999px;">' + card.category + '</span></div>' +
         '<div class="sm-flashcard">' +
-          '<div class="sm-word-row"><p class="sm-word">' + card.word + '</p><button class="sm-speak-btn" id="sm-speak-word" aria-label="단어 발음 듣기">' + svgIcon('volume') + '</button></div>' +
-          '<p class="sm-ipa">' + card.ipa + '</p>' +
-          '<p class="sm-korean">' + card.korean + '</p>' +
-          '<div class="sm-divider"></div>' +
-          '<div class="sm-word-row"><p class="sm-example">' + card.example + '</p><button class="sm-speak-btn" id="sm-speak-example" aria-label="예문 발음 듣기">' + svgIcon('volume') + '</button></div>' +
+          (card.word
+            ? '<div class="sm-word-row"><p class="sm-word">' + card.word + '</p><button class="sm-speak-btn" id="sm-speak-word" aria-label="단어 발음 듣기">' + svgIcon('volume') + '</button></div>' +
+              '<p class="sm-ipa">' + card.ipa + '</p>' +
+              '<p class="sm-korean">' + card.korean + '</p>' +
+              '<div class="sm-divider"></div>'
+            : '') +
+          '<div class="sm-word-row"><p class="' + (card.word ? 'sm-example' : 'sm-word') + '">' + card.example + '</p><button class="sm-speak-btn" id="sm-speak-example" aria-label="예문 발음 듣기">' + svgIcon('volume') + '</button></div>' +
           '<p class="sm-example-ko">' + card.exampleKo + '</p>' +
         '</div>' +
         '<div class="sm-controls">' +
@@ -1088,7 +1118,8 @@ function smRender() {
   document.getElementById('sm-close').addEventListener('click', smClose);
   document.getElementById('sm-prev').addEventListener('click', () => { smIndex = (smIndex - 1 + allCards.length) % allCards.length; smSoundIssue = false; smRender(); });
   document.getElementById('sm-next').addEventListener('click', () => { smIndex = (smIndex + 1) % allCards.length; smSoundIssue = false; smRender(); });
-  document.getElementById('sm-speak-word').addEventListener('click', () => speak(card.word, () => { smSoundIssue = true; smRender(); }));
+  const smSpeakWordBtn = document.getElementById('sm-speak-word');
+  if (smSpeakWordBtn) smSpeakWordBtn.addEventListener('click', () => speak(card.word, () => { smSoundIssue = true; smRender(); }));
   document.getElementById('sm-speak-example').addEventListener('click', () => speak(card.example, () => { smSoundIssue = true; smRender(); }));
   document.getElementById('sm-learned').addEventListener('click', async () => {
     await saveProgress(card.id);

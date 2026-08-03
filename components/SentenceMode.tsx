@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Volume2, X } from 'lucide-react';
 import { scenes } from '@/data/scenes';
+import { sentences } from '@/data/sentences';
 import { initSpeech, isLikelyInAppBrowser, speak } from '@/lib/speech';
 import {
   computeStreak,
@@ -17,9 +18,40 @@ interface SentenceModeProps {
   onClose: () => void;
 }
 
-const allCards = scenes.flatMap((scene) =>
-  scene.hotspots.map((h) => ({ ...h, sceneTitleKo: scene.titleKo }))
+// Two content sources feed the same flashcard list: hotspot words (each with
+// a word + IPA + example sentence, tied to a 3D scene) and standalone
+// "생활 영어" phrases with no word focus. `word` being present is what tells
+// the card renderer which layout to use.
+interface ReviewCard {
+  id: string;
+  category: string;
+  word?: string;
+  ipa?: string;
+  korean?: string;
+  example: string;
+  exampleKo: string;
+}
+
+const wordCards: ReviewCard[] = scenes.flatMap((scene) =>
+  scene.hotspots.map((h) => ({
+    id: h.id,
+    category: scene.titleKo,
+    word: h.word,
+    ipa: h.ipa,
+    korean: h.korean,
+    example: h.example,
+    exampleKo: h.exampleKo,
+  }))
 );
+
+const phraseCards: ReviewCard[] = sentences.map((s) => ({
+  id: s.id,
+  category: s.cat,
+  example: s.en,
+  exampleKo: s.ko,
+}));
+
+const allCards: ReviewCard[] = [...wordCards, ...phraseCards];
 
 export default function SentenceMode({ onClose }: SentenceModeProps) {
   const [index, setIndex] = useState(0);
@@ -124,28 +156,33 @@ export default function SentenceMode({ onClose }: SentenceModeProps) {
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-ink">Flashcard</h2>
             <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
-              {card.sceneTitleKo}
+              {card.category}
             </span>
           </div>
 
           <div className="mt-4 rounded-2xl bg-[#f2ede3] p-5 text-center">
-            <div className="flex items-center justify-center gap-2">
-              <p className="text-2xl font-extrabold text-ink">{card.word}</p>
-              <button
-                onClick={() => handleSpeak(card.word)}
-                aria-label="단어 발음 듣기"
-                className="rounded-full bg-sky/20 p-1.5 text-sky-700 hover:bg-sky/40"
-              >
-                <Volume2 size={16} />
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">{card.ipa}</p>
-            <p className="mt-1 text-sm text-slate-600">{card.korean}</p>
+            {card.word && (
+              <>
+                <div className="flex items-center justify-center gap-2">
+                  <p className="text-2xl font-extrabold text-ink">{card.word}</p>
+                  <button
+                    onClick={() => handleSpeak(card.word as string)}
+                    aria-label="단어 발음 듣기"
+                    className="rounded-full bg-sky/20 p-1.5 text-sky-700 hover:bg-sky/40"
+                  >
+                    <Volume2 size={16} />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">{card.ipa}</p>
+                <p className="mt-1 text-sm text-slate-600">{card.korean}</p>
+                <div className="my-4 h-px bg-slate-200" />
+              </>
+            )}
 
-            <div className="my-4 h-px bg-slate-200" />
-
             <div className="flex items-center justify-center gap-2">
-              <p className="text-base font-semibold text-ink">{card.example}</p>
+              <p className={card.word ? 'text-base font-semibold text-ink' : 'text-xl font-extrabold text-ink'}>
+                {card.example}
+              </p>
               <button
                 onClick={() => handleSpeak(card.example)}
                 aria-label="예문 발음 듣기"
