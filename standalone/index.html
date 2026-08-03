@@ -131,6 +131,12 @@
     background: var(--hairline); border-radius: 0.9rem; padding: 0.7rem 0.8rem;
   }
   .info-example { flex: 1; margin: 0; font-size: 0.9rem; color: var(--pill-text); }
+  .info-sound-hint { margin: 0.6rem 0 0; font-size: 0.75rem; color: #b45309; }
+  :root[data-theme="dark"] .info-sound-hint { color: #fbbf24; }
+  @media (prefers-color-scheme: dark) {
+    .info-sound-hint { color: #fbbf24; }
+  }
+  :root[data-theme="light"] .info-sound-hint { color: #b45309; }
 
   @media (prefers-reduced-motion: reduce) {
     .pill, .speak-btn { transition: none; }
@@ -450,16 +456,75 @@ function tweenTo(obj, to, durationSec, easeFn) {
 }
 
 // ---------------------------------------------------------------------------
-// Speech (Web Speech API)
+// Speech (Web Speech API) — mobile browsers (iOS Safari, Android Chrome) are
+// unreliable here in ways desktop Chrome isn't, so we work around the known
+// culprits: utterances silently GC'd before they play, voice lists loading
+// asynchronously, and long speech runs getting auto-paused after ~15s.
 // ---------------------------------------------------------------------------
-function speak(text) {
+let voiceCache = [];
+let lastUtterance = null;
+let speechUnlocked = false;
+let keepAliveTimer = null;
+
+function refreshVoices() {
   if (!('speechSynthesis' in window)) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US';
-  u.rate = 0.85;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
+  voiceCache = window.speechSynthesis.getVoices();
 }
+
+function pickEnglishVoice() {
+  if (!voiceCache.length) return null;
+  return (
+    voiceCache.find((v) => v.lang === 'en-US') ||
+    voiceCache.find((v) => v.lang && v.lang.indexOf('en') === 0) ||
+    null
+  );
+}
+
+function ensureKeepAlive() {
+  if (keepAliveTimer) return;
+  keepAliveTimer = setInterval(() => {
+    const synth = window.speechSynthesis;
+    if (synth.speaking && !synth.paused) {
+      synth.pause();
+      synth.resume();
+    }
+  }, 4000);
+}
+
+function unlockSpeechOnce() {
+  if (speechUnlocked || !('speechSynthesis' in window)) return;
+  speechUnlocked = true;
+  const warm = new SpeechSynthesisUtterance(' ');
+  warm.volume = 0;
+  window.speechSynthesis.speak(warm);
+}
+
+function initSpeech() {
+  if (!('speechSynthesis' in window)) return;
+  refreshVoices();
+  window.speechSynthesis.onvoiceschanged = refreshVoices;
+  ensureKeepAlive();
+  window.addEventListener('pointerdown', unlockSpeechOnce, { once: true });
+}
+
+function speak(text, onError) {
+  if (!('speechSynthesis' in window)) {
+    if (onError) onError();
+    return;
+  }
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = 0.85;
+  const voice = pickEnglishVoice();
+  if (voice) utterance.voice = voice;
+  if (onError) utterance.onerror = onError;
+  lastUtterance = utterance; // Safari can silently drop unreferenced utterances.
+  synth.speak(utterance);
+}
+
+initSpeech();
 
 // ---------------------------------------------------------------------------
 // Three.js scene setup
@@ -521,6 +586,7 @@ window.addEventListener('resize', () => {
 let sceneIndex = 0;
 const visited = new Set();
 let selectedHotspot = null;
+let soundIssue = false;
 
 function activeScene() { return scenes[sceneIndex]; }
 
@@ -573,13 +639,20 @@ function renderInfoPanel() {
     '<div class="info-example-row">' +
       '<p class="info-example">' + h.example + '</p>' +
       '<button class="speak-btn small" aria-label="예문 발음 듣기" data-speak="' + h.example.replace(/"/g, '&quot;') + '">' + svgIcon('volume') + '</button>' +
-    '</div>';
+    '</div>' +
+    (soundIssue ? '<p class="info-sound-hint">소리가 안 들리면 기기 음량이나 무음 모드를 확인해보세요.</p>' : '');
   panel.querySelector('.info-close').addEventListener('click', () => {
     selectedHotspot = null;
     renderInfoPanel();
   });
   panel.querySelectorAll('[data-speak]').forEach((btn) => {
-    btn.addEventListener('click', () => speak(btn.getAttribute('data-speak')));
+    btn.addEventListener('click', () => {
+      soundIssue = false;
+      speak(btn.getAttribute('data-speak'), () => {
+        soundIssue = true;
+        renderInfoPanel();
+      });
+    });
   });
   infoMount.appendChild(panel);
 }
@@ -588,6 +661,7 @@ function selectHotspot(id) {
   const h = activeScene().hotspots.find((x) => x.id === id);
   if (!h) return;
   selectedHotspot = h;
+  soundIssue = false;
   visited.add(activeScene().id + ':' + id);
   renderInfoPanel();
   renderProgress();
