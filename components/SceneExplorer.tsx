@@ -121,15 +121,46 @@ export default function SceneExplorer() {
     };
     window.addEventListener('keydown', handleKeydown);
 
+    // Single-finger (or mouse) vertical drag dollies like the wheel/arrows
+    // above. Two-finger drag pinches: spreading zooms in, pinching zooms out.
+    // Pointer Events cover mouse, touch, and pen uniformly, so both desktop
+    // click-drag and mobile touch use this same tracking.
+    const activePointers = new Map<number, { x: number; y: number }>();
     let dragStartY: number | null = null;
     let dragMoved = false;
+    let pinchStartDist: number | null = null;
     const DRAG_THRESHOLD = 4;
 
+    const pinchDistance = () => {
+      const pts = Array.from(activePointers.values());
+      if (pts.length < 2) return null;
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
+
     const handlePointerDown = (event: PointerEvent) => {
-      dragStartY = event.clientY;
-      dragMoved = false;
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (activePointers.size === 2) {
+        pinchStartDist = pinchDistance();
+        dragStartY = null;
+      } else if (activePointers.size === 1) {
+        dragStartY = event.clientY;
+        dragMoved = false;
+      }
     };
     const handlePointerMove = (event: PointerEvent) => {
+      if (!activePointers.has(event.pointerId)) return;
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (activePointers.size >= 2) {
+        const dist = pinchDistance();
+        if (pinchStartDist !== null && dist !== null) {
+          dolly((dist - pinchStartDist) * 0.015);
+          pinchStartDist = dist;
+        }
+        dragMoved = true;
+        return;
+      }
+
       if (dragStartY === null) return;
       const dy = event.clientY - dragStartY;
       if (Math.abs(dy) > DRAG_THRESHOLD) {
@@ -138,12 +169,15 @@ export default function SceneExplorer() {
         dragStartY = event.clientY;
       }
     };
-    const handlePointerUp = () => {
-      dragStartY = null;
+    const handlePointerEnd = (event: PointerEvent) => {
+      activePointers.delete(event.pointerId);
+      if (activePointers.size < 2) pinchStartDist = null;
+      if (activePointers.size === 0) dragStartY = null;
     };
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
 
     const handleClick = (event: MouseEvent) => {
       if (dragMoved) {
@@ -167,7 +201,8 @@ export default function SceneExplorer() {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeydown);
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
       renderer.domElement.removeEventListener('wheel', handleWheel);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.domElement.removeEventListener('click', handleClick);

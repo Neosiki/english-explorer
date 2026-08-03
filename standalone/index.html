@@ -656,15 +656,46 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
+// Single-finger (or mouse) vertical drag dollies like the wheel/arrows
+// above. Two-finger drag pinches: spreading zooms in, pinching zooms out.
+// Pointer Events cover mouse, touch, and pen uniformly, so both desktop
+// click-drag and mobile touch use this same tracking.
+const activePointers = new Map();
 let dragStartY = null;
 let dragMoved = false;
+let pinchStartDist = null;
 const DRAG_THRESHOLD = 4;
 
+function pinchDistance() {
+  const pts = Array.from(activePointers.values());
+  if (pts.length < 2) return null;
+  return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+}
+
 renderer.domElement.addEventListener('pointerdown', (event) => {
-  dragStartY = event.clientY;
-  dragMoved = false;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (activePointers.size === 2) {
+    pinchStartDist = pinchDistance();
+    dragStartY = null;
+  } else if (activePointers.size === 1) {
+    dragStartY = event.clientY;
+    dragMoved = false;
+  }
 });
 window.addEventListener('pointermove', (event) => {
+  if (!activePointers.has(event.pointerId)) return;
+  activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+  if (activePointers.size >= 2) {
+    const dist = pinchDistance();
+    if (pinchStartDist !== null && dist !== null) {
+      dolly((dist - pinchStartDist) * 0.015);
+      pinchStartDist = dist;
+    }
+    dragMoved = true;
+    return;
+  }
+
   if (dragStartY === null) return;
   const dy = event.clientY - dragStartY;
   if (Math.abs(dy) > DRAG_THRESHOLD) {
@@ -673,9 +704,13 @@ window.addEventListener('pointermove', (event) => {
     dragStartY = event.clientY;
   }
 });
-window.addEventListener('pointerup', () => {
-  dragStartY = null;
-});
+function handlePointerEnd(event) {
+  activePointers.delete(event.pointerId);
+  if (activePointers.size < 2) pinchStartDist = null;
+  if (activePointers.size === 0) dragStartY = null;
+}
+window.addEventListener('pointerup', handlePointerEnd);
+window.addEventListener('pointercancel', handlePointerEnd);
 
 // ---------------------------------------------------------------------------
 // App state
