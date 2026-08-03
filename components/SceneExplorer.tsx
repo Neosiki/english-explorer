@@ -4,40 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { scenes, type Hotspot } from '@/data/scenes';
+import { buildHotspotObject } from '@/lib/models';
 import InfoPanel from './InfoPanel';
-
-function buildMesh(hotspot: Hotspot): THREE.Mesh {
-  const [a, b, c] = hotspot.size;
-  let geometry: THREE.BufferGeometry;
-
-  switch (hotspot.shape) {
-    case 'cylinder':
-      geometry = new THREE.CylinderGeometry(a, a, b, 24);
-      break;
-    case 'sphere':
-      geometry = new THREE.SphereGeometry(a, 24, 24);
-      break;
-    case 'cone':
-      geometry = new THREE.ConeGeometry(a, b, 24);
-      break;
-    case 'box':
-    default:
-      geometry = new THREE.BoxGeometry(a, b, c);
-      break;
-  }
-
-  const material = new THREE.MeshStandardMaterial({
-    color: hotspot.color,
-    roughness: 0.6,
-    metalness: 0.05,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.set(...hotspot.position);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.userData.hotspotId = hotspot.id;
-  return mesh;
-}
 
 export default function SceneExplorer() {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -125,7 +93,7 @@ export default function SceneExplorer() {
       mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(group.children, false);
+      const intersects = raycaster.intersectObjects(group.children, true);
       if (intersects.length > 0) {
         const id = intersects[0].object.userData.hotspotId as string | undefined;
         if (id) handleHotspotClickRef.current?.(id);
@@ -175,10 +143,13 @@ export default function SceneExplorer() {
 
     while (group.children.length) {
       const obj = group.children.pop();
-      if (obj instanceof THREE.Mesh) {
-        obj.geometry.dispose();
-        (obj.material as THREE.Material).dispose();
-      }
+      if (!obj) continue;
+      obj.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          (child.material as THREE.Material).dispose();
+        }
+      });
     }
 
     const floorGeo = new THREE.CylinderGeometry(4, 4, 0.05, 40);
@@ -188,7 +159,7 @@ export default function SceneExplorer() {
     floor.receiveShadow = true;
     group.add(floor);
 
-    activeScene.hotspots.forEach((h) => group.add(buildMesh(h)));
+    activeScene.hotspots.forEach((h) => group.add(buildHotspotObject(h)));
 
     scene.background = new THREE.Color(activeScene.bgColor);
     setSelected(null);
