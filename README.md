@@ -11,6 +11,36 @@
 Three.js 기반 3D 인터랙티브 씬에 클릭 핫스팟을 배치하는 구조로,
 `thebuggeddev/anatomy`(3D 인체 탐색 앱)의 패턴을 영어 교육용으로 응용했습니다.
 
+## 제품 콘셉트 영상
+
+<p align="center">
+  <a href="docs/product-film/media/english-explorer-product-film.mp4">
+    <img src="docs/product-film/media/english-explorer-product-film-poster.jpg" width="420" alt="English Explorer 제품 콘셉트 영상 포스터" />
+  </a>
+</p>
+
+교실에서 공항, 카페, 체크인 카운터까지 이동하며 사물을 선택하고
+단어·IPA·한글 뜻·예문을 확인하는 학습 흐름을 파스텔 디오라마 스타일로
+표현한 20초 세로형 제품 콘셉트 영상입니다.
+
+- [60fps MP4 영상 보기](docs/product-film/media/english-explorer-product-film.mp4)
+- [GIF 미리보기 보기](docs/product-film/media/english-explorer-product-film.gif)
+- [제작 노트와 스토리보드](docs/product-film/README.md)
+
+> 이 영상은 실제 배포 화면을 녹화한 자료가 아니라, 저장소 코드에서 확인한
+> 장면·단어·예문·기능을 바탕으로 제작한 비공식 제품 콘셉트 영상입니다.
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/product-film/media/scenes/classroom.png" width="280" alt="Classroom pastel diorama" /><br /><strong>Classroom</strong></td>
+    <td align="center"><img src="docs/product-film/media/scenes/airport.png" width="280" alt="Airport pastel diorama" /><br /><strong>Airport</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/product-film/media/scenes/cafe.png" width="280" alt="Cafe pastel diorama" /><br /><strong>Cafe</strong></td>
+    <td align="center"><img src="docs/product-film/media/scenes/checkin-counter.png" width="280" alt="Check-in counter pastel diorama" /><br /><strong>Check-in Counter</strong></td>
+  </tr>
+</table>
+
 ## 기술 스택
 
 - Next.js 14 (App Router) + React 18 + TypeScript
