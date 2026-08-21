@@ -110,3 +110,23 @@ Vercel에 리포지토리를 연결하면 별도 설정 없이 바로 배포됩�
 저장소를 내려받은 뒤 HTML 파일과 `course/assets/` 폴더를 같은 구조로 유지한 상태에서 `course/영어학습앱_8차시_실습강의안.html`을 브라우저로 엽니다. 온라인 배포 시에는 저장소의 `course/` 폴더를 정적 호스팅 경로로 연결하면 이미지와 MP4 데모가 함께 표시됩니다.
 
 강의안의 소개 링크는 [Neosiki 홈페이지](https://neosiki.github.io/#work)와 이 영어 학습앱 저장소를 연결합니다. 영상은 별도의 외부 분석 서비스나 API 키 없이 로컬 MP4 파일로 재생되며, 이미지에는 한국어 대체 텍스트가 지정되어 있습니다.
+
+## 고도화 버전: 로그인·개인화 복습·PWA
+
+기존 3D 장면·문장 모드·TTS·localStorage 기능과 중복되지 않도록 고도화 영역을 별도로 추가했습니다. `components/UpgradeDashboard.tsx`에는 이메일 매직 링크·Google 로그인, 로그인 전 체험 모드, 적응형 복습 예약, 회상 퀴즈, 학습 대시보드, 선택형 음성 인식, PWA 설치 버튼이 들어 있습니다.
+
+Supabase 환경 변수가 없으면 기존처럼 체험 모드로 작동하며, 학습 상태는 현재 브라우저에 저장됩니다. 환경 변수가 설정되고 사용자가 로그인하면 `explorer_review_state`와 `explorer_review_events`를 통해 사용자별 복습 상태를 동기화합니다. `supabase-schema.sql`의 RLS는 `auth.uid() = user_id`를 기준으로 로그인한 사용자의 데이터만 허용합니다.
+
+```bash
+# .env.local
+NEXT_PUBLIC_SUPABASE_URL=https://프로젝트.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=공개_anon_key
+```
+
+Supabase 대시보드의 Authentication에서 Email OTP/Magic Link와 Google provider를 켜고, 로컬·배포 주소를 Site URL 및 Redirect URL에 등록해야 합니다. 서비스 역할 키는 브라우저 코드나 저장소에 넣지 않습니다.
+
+PWA 설치 메타데이터는 `app/manifest.ts`와 `app/icon.svg`에 정의되어 있습니다. HTTPS 배포 후 브라우저의 설치 기능을 사용할 수 있으며, 서비스 워커 기반 오프라인 캐시를 추가할 때는 캐시 범위를 핵심 앱 화면과 콘텐츠 자산으로 제한합니다.
+
+### 고도화 실습 강의안
+
+새 기능만 다루는 별도 HTML 강의안은 [`course/영어학습앱_고도화_8차시_실습강의안.html`](course/영어학습앱_고도화_8차시_실습강의안.html)입니다. 인증 설계, 매직 링크, RLS·동기화, 간격 반복, 회상 퀴즈, 대시보드, PWA·접근성, SpeechRecognition, 통합 테스트·배포를 8차시로 구성했습니다.
